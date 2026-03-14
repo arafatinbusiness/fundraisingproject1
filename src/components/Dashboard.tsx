@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Download, Filter, Search, Calendar, User as UserIcon, History, TrendingUp, Users, Wallet, Trash2, Share2 } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Download, Filter, Search, Calendar, User as UserIcon, History, TrendingUp, Users, Wallet, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Funding, Log, User } from '../types';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -28,6 +28,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
   const [showLogs, setShowLogs] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [logsPage, setLogsPage] = useState(1);
+  const LOGS_PER_PAGE = 10;
+
+  // Reset logs page when switching to logs view
+  const toggleLogsView = useCallback(() => {
+    setShowLogs(prev => {
+      if (!prev) {
+        setLogsPage(1); // Reset to first page when showing logs
+      }
+      return !prev;
+    });
+  }, []);
 
   const years = useMemo(() => {
     const yrs = new Set(fundings.map(f => f.year.toString()));
@@ -73,6 +85,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
     });
     return Array.from(uniqueCombos).sort();
   }, [fundings]);
+
+  // Paginated logs - memoized for performance
+  const totalLogsPages = Math.ceil(logs.length / LOGS_PER_PAGE);
+  const paginatedLogs = useMemo(() => {
+    const start = (logsPage - 1) * LOGS_PER_PAGE;
+    return logs.slice(start, start + LOGS_PER_PAGE);
+  }, [logs, logsPage, LOGS_PER_PAGE]);
 
   const exportToExcel = () => {
     // Create member-based data structure
@@ -326,7 +345,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
 
         <div className="flex gap-2">
           <button
-            onClick={() => setShowLogs(!showLogs)}
+            onClick={toggleLogsView}
             className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-xs transition-all active:scale-95 shadow-sm border uppercase tracking-widest ${
               showLogs ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-700'
             }`}
@@ -354,12 +373,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
             exit={{ opacity: 0, x: -20 }}
             className="space-y-3"
           >
-            <h3 className="text-sm font-black text-slate-800 px-1 flex items-center gap-2">
-              <History size={16} className="text-emerald-600" />
-              অ্যাডমিন পরিবর্তনের ইতিহাস
-            </h3>
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                <History size={16} className="text-emerald-600" />
+                অ্যাডমিন পরিবর্তনের ইতিহাস
+              </h3>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">
+                {logs.length.toLocaleString('bn-BD')} টি রেকর্ড • পৃষ্ঠা {logsPage} / {totalLogsPages}
+              </span>
+            </div>
             <div className="space-y-3">
-              {logs.length > 0 ? logs.map(log => (
+              {paginatedLogs.length > 0 ? paginatedLogs.map(log => (
                 <div key={log.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                   <div className="flex justify-between items-start mb-2">
                     <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wider ${
@@ -395,6 +419,52 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
                 <div className="py-12 text-center text-slate-400 font-medium italic">কোনো ইতিহাস পাওয়া যায়নি।</div>
               )}
             </div>
+            {/* Pagination Controls */}
+            {totalLogsPages > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-4">
+                <button
+                  onClick={() => setLogsPage(prev => Math.max(1, prev - 1))}
+                  disabled={logsPage === 1}
+                  className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalLogsPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalLogsPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (logsPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (logsPage >= totalLogsPages - 2) {
+                      pageNum = totalLogsPages - 4 + i;
+                    } else {
+                      pageNum = logsPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setLogsPage(pageNum)}
+                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                          logsPage === pageNum
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => setLogsPage(prev => Math.min(totalLogsPages, prev + 1))}
+                  disabled={logsPage === totalLogsPages}
+                  className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
           </motion.div>
         ) : (
           <motion.div

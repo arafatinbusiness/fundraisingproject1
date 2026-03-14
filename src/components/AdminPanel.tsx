@@ -98,20 +98,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
 
     setLoading(true);
     try {
+      // Try to find user by email to get their UID
+      // Note: In a real app, you might need to use Firebase Admin SDK on backend
+      // For now, we'll create with empty UID and admin can update later
       await addDoc(collection(db, 'users'), {
         name: newUserName,
         email: newUserEmail,
         role: newUserRole,
         details: userDetails,
-        uid: '' 
+        uid: '' // Will need to be updated when user logs in
       });
       await logAction('user_add', `নতুন সদস্য যোগ করা হয়েছে: ${newUserName} (${newUserRole})`);
       setNewUserName('');
       setNewUserEmail('');
       setUserDetails('');
-      alert('সদস্য সফলভাবে যোগ করা হয়েছে!');
+      alert('সদস্য সফলভাবে যোগ করা হয়েছে! ব্যবহারকারী প্রথমবার লগইন করার পর UID আপডেট করতে হবে।');
     } catch (err) {
       console.error(err);
+      alert('সদস্য যোগ করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
     } finally {
       setLoading(false);
     }
@@ -136,6 +140,48 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
       alert('তহবিলের তথ্য আপডেট হয়েছে!');
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to promote a user to admin
+  const handlePromoteToAdmin = async (userId: string, userName: string) => {
+    if (!confirm(`আপনি কি নিশ্চিত যে ${userName}-কে অ্যাডমিন বানাতে চান?`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        role: 'admin'
+      });
+      await logAction('user_promote', `${userName}-কে অ্যাডমিন পদে উন্নীত করা হয়েছে`);
+      alert(`${userName} এখন অ্যাডমিন!`);
+    } catch (err) {
+      console.error(err);
+      alert('অ্যাডমিন বানাতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to demote an admin to member
+  const handleDemoteToMember = async (userId: string, userName: string) => {
+    if (!confirm(`আপনি কি নিশ্চিত যে ${userName}-কে সদস্য পদে ফিরিয়ে আনতে চান?`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        role: 'member'
+      });
+      await logAction('user_demote', `${userName}-কে সদস্য পদে ফিরিয়ে আনা হয়েছে`);
+      alert(`${userName} এখন সদস্য!`);
+    } catch (err) {
+      console.error(err);
+      alert('সদস্য পদে ফিরিয়ে আনতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
     } finally {
       setLoading(false);
     }
@@ -324,21 +370,46 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
               </div>
               <div className="space-y-2">
                 {users.map(u => (
-                  <div key={u.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center font-bold">
-                        {u.name.charAt(0)}
+                  <div key={u.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center font-bold">
+                          {u.name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-black text-slate-900 leading-tight">{u.name}</p>
+                          <p className="text-[10px] text-slate-400 font-bold">{u.email}</p>
+                          {u.uid && (
+                            <p className="text-[8px] text-slate-300 font-mono mt-1">UID: {u.uid.substring(0, 8)}...</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-black text-slate-900 leading-tight">{u.name}</p>
-                        <p className="text-[10px] text-slate-400 font-bold">{u.email}</p>
-                      </div>
+                      <span className={`text-[9px] uppercase font-black px-2 py-1 rounded-lg ${
+                        u.role === 'admin' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                      }`}>
+                        {u.role === 'admin' ? 'অ্যাডমিন' : 'সদস্য'}
+                      </span>
                     </div>
-                    <span className={`text-[9px] uppercase font-black px-2 py-1 rounded-lg ${
-                      u.role === 'admin' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
-                    }`}>
-                      {u.role === 'admin' ? 'অ্যাডমিন' : 'সদস্য'}
-                    </span>
+                    
+                    <div className="flex gap-2 mt-3 pt-3 border-t border-slate-50">
+                      {u.role === 'member' ? (
+                        <button
+                          onClick={() => handlePromoteToAdmin(u.id, u.name)}
+                          disabled={loading}
+                          className="flex-1 bg-emerald-600 text-white text-xs font-bold py-2 rounded-xl hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          অ্যাডমিন বানান
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleDemoteToMember(u.id, u.name)}
+                          disabled={loading}
+                          className="flex-1 bg-slate-600 text-white text-xs font-bold py-2 rounded-xl hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          সদস্য বানান
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

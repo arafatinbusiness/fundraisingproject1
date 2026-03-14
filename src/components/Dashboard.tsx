@@ -11,6 +11,7 @@ interface DashboardProps {
   logs: Log[];
   users: User[];
   fundName: string;
+  isAdmin?: boolean;
 }
 
 const MONTHS_BN = [

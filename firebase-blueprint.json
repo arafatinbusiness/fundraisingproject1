@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Application users and their roles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string", "description": "Name in Bangla" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "member"] },
+        "details": { "type": "string", "description": "Additional details about the user" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Funding": {
+      "title": "Funding",
+      "description": "Monthly funding records for users",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "amount": { "type": "number" },
+        "month": { "type": "string" },
+        "year": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["userId", "amount", "month", "year"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "Audit logs for admin changes",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "adminId": { "type": "string" },
+        "adminName": { "type": "string" }
+      },
+      "required": ["type", "details", "timestamp", "adminId"]
+    },
+    "FundInfo": {
+      "title": "Fund Info",
+      "description": "Details about the fund itself",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "year": { "type": "number" }
+      },
+      "required": ["name", "year"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Collection of users"
+    },
+    "fundings": {
+      "schema": "Funding",
+      "description": "Collection of funding records"
+    },
+    "logs": {
+      "schema": "Log",
+      "description": "Collection of audit logs"
+    },
+    "fund_info": {
+      "schema": "FundInfo",
+      "description": "Information about the fund"
+    }
+  }
+}

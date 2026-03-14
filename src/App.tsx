@@ -135,11 +135,6 @@ const App: React.FC = () => {
     return <LandingPage onLogin={() => setShowLanding(false)} />;
   }
 
-  // If user is not logged in, show auth screen
-  if (!user) {
-    return <Auth />;
-  }
-
   // Always show content (public read-only access)
   // If user is logged in and is admin, show admin features
   return (

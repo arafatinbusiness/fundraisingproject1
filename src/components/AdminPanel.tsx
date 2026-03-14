@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { UserPlus, DollarSign, Settings, Save, X, Plus, Trash2, Users, ChevronRight, Info } from 'lucide-react';
+import { UserPlus, DollarSign, Settings, Save, X, Plus, Trash2, Users, ChevronRight, Info, History, Clock } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, addDoc, updateDoc, doc, deleteDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
-import { User, Funding, FundInfo } from '../types';
+import { User, Funding, FundInfo, Log } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface AdminPanelProps {
@@ -29,7 +29,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
 
   // User State
   const [newUserName, setNewUserName] = useState('');
-  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPhone, setNewUserPhone] = useState('');
   const [newUserRole, setNewUserRole] = useState<'admin' | 'member'>('member');
   const [userDetails, setUserDetails] = useState('');
 
@@ -94,23 +94,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUserName || !newUserEmail) return;
+    if (!newUserName || !newUserPhone) return;
 
     setLoading(true);
     try {
-      // Try to find user by email to get their UID
-      // Note: In a real app, you might need to use Firebase Admin SDK on backend
-      // For now, we'll create with empty UID and admin can update later
+      // Create user with phone number instead of email
       await addDoc(collection(db, 'users'), {
         name: newUserName,
-        email: newUserEmail,
+        phone: newUserPhone,
         role: newUserRole,
         details: userDetails,
         uid: '' // Will need to be updated when user logs in
       });
       await logAction('user_add', `নতুন সদস্য যোগ করা হয়েছে: ${newUserName} (${newUserRole})`);
       setNewUserName('');
-      setNewUserEmail('');
+      setNewUserPhone('');
       setUserDetails('');
       alert('সদস্য সফলভাবে যোগ করা হয়েছে! ব্যবহারকারী প্রথমবার লগইন করার পর UID আপডেট করতে হবে।');
     } catch (err) {
@@ -182,6 +180,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
     } catch (err) {
       console.error(err);
       alert('সদস্য পদে ফিরিয়ে আনতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to delete a user
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`আপনি কি নিশ্চিত যে ${userName}-কে সম্পূর্ণভাবে মুছে ফেলতে চান? এই কাজটি ফিরিয়ে আনা যাবে না।`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+      await logAction('user_delete', `${userName}-কে সিস্টেম থেকে মুছে ফেলা হয়েছে`);
+      alert(`${userName} সফলভাবে মুছে ফেলা হয়েছে!`);
+    } catch (err) {
+      console.error(err);
+      alert('সদস্য মুছতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
     } finally {
       setLoading(false);
     }
@@ -330,13 +347,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">ইমেইল</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">ফোন নম্বর</label>
                   <input
-                    type="email"
-                    placeholder="karim@example.com"
+                    type="tel"
+                    placeholder="০১৭১২৩৪৫৬৭৮"
                     className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm"
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    value={newUserPhone}
+                    onChange={(e) => setNewUserPhone(e.target.value)}
                     required
                   />
                 </div>
@@ -378,7 +395,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
                         </div>
                         <div>
                           <p className="font-black text-slate-900 leading-tight">{u.name}</p>
-                          <p className="text-[10px] text-slate-400 font-bold">{u.email}</p>
+                          <p className="text-[10px] text-slate-400 font-bold">{u.phone || u.email}</p>
                           {u.uid && (
                             <p className="text-[8px] text-slate-300 font-mono mt-1">UID: {u.uid.substring(0, 8)}...</p>
                           )}
@@ -409,6 +426,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
                           সদস্য বানান
                         </button>
                       )}
+                      <button
+                        onClick={() => handleDeleteUser(u.id, u.name)}
+                        disabled={loading}
+                        className="flex-1 bg-red-600 text-white text-xs font-bold py-2 rounded-xl hover:bg-red-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1"
+                      >
+                        <Trash2 size={12} />
+                        মুছুন
+                      </button>
                     </div>
                   </div>
                 ))}

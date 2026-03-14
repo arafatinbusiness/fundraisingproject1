@@ -36,8 +36,10 @@ service cloud.firestore {
       allow read: if true;
       // Only admins can create
       allow create: if isAdmin();
-      // No one can update/delete
-      allow update, delete: if false;
+      // Only admins can delete (for fixing mistakes)
+      allow delete: if isAdmin();
+      // No one can update
+      allow update: if false;
     }
 
     // Fund info collection

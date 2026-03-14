@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { Download, Filter, Search, Calendar, User as UserIcon, History, TrendingUp, Users, Wallet } from 'lucide-react';
+import { Download, Filter, Search, Calendar, User as UserIcon, History, TrendingUp, Users, Wallet, Trash2, Share2 } from 'lucide-react';
 import { Funding, Log, User } from '../types';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { bn } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
+import { db } from '../firebase';
+import { doc, deleteDoc } from 'firebase/firestore';
 
 interface DashboardProps {
   fundings: Funding[];
@@ -19,12 +21,13 @@ const MONTHS_BN = [
   'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'
 ];
 
-export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fundName }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fundName, isAdmin }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
   const [showLogs, setShowLogs] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const years = useMemo(() => {
     const yrs = new Set(fundings.map(f => f.year.toString()));
@@ -50,25 +53,221 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
       .reduce((sum, f) => sum + f.amount, 0);
   }, [fundings]);
 
+  // Calculate total amount per member
+  const memberTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    fundings.forEach(f => {
+      if (!totals[f.userName]) {
+        totals[f.userName] = 0;
+      }
+      totals[f.userName] += f.amount;
+    });
+    return totals;
+  }, [fundings]);
+
+  // Get unique months and years for Excel columns
+  const allMonthsYears = useMemo(() => {
+    const uniqueCombos = new Set<string>();
+    fundings.forEach(f => {
+      uniqueCombos.add(`${f.month} ${f.year}`);
+    });
+    return Array.from(uniqueCombos).sort();
+  }, [fundings]);
+
   const exportToExcel = () => {
-    const data = filteredFundings.map(f => ({
-      'সদস্যের নাম': f.userName,
-      'মাস': f.month,
-      'বছর': f.year,
-      'পরিমাণ (টাকা)': f.amount,
-      'আপডেট হয়েছে': format(new Date(f.updatedAt), 'dd MMM yyyy, hh:mm a', { locale: bn })
-    }));
+    // Create member-based data structure
+    const memberData: Record<string, Record<string, number>> = {};
+    
+    // Initialize all members with 0 for all months
+    users.forEach(user => {
+      memberData[user.name] = {};
+      allMonthsYears.forEach(monthYear => {
+        memberData[user.name][monthYear] = 0;
+      });
+    });
+
+    // Fill in actual amounts
+    fundings.forEach(f => {
+      const monthYear = `${f.month} ${f.year}`;
+      if (memberData[f.userName]) {
+        memberData[f.userName][monthYear] = f.amount;
+      }
+    });
+
+    // Convert to Excel rows
+    const data = users.map(user => {
+      const row: any = {
+        'Member Name': user.name,
+        'Phone': user.phone || user.email || '',
+        'Role': user.role || 'member'
+      };
+
+      // Add month columns
+      allMonthsYears.forEach(monthYear => {
+        row[monthYear] = memberData[user.name]?.[monthYear] || 0;
+      });
+
+      // Calculate total for this member
+      const memberTotal = Object.values(memberData[user.name] || {}).reduce((sum: number, amount: any) => sum + (Number(amount) || 0), 0);
+      row['Total Amount'] = memberTotal;
+
+      return row;
+    });
+
+    // Add total row
+    const totalRow: any = {
+      'Member Name': 'TOTAL',
+      'Phone': '',
+      'Role': ''
+    };
+
+    // Calculate totals for each month
+    allMonthsYears.forEach(monthYear => {
+      const monthTotal = users.reduce((sum, user) => sum + (memberData[user.name]?.[monthYear] || 0), 0);
+      totalRow[monthYear] = monthTotal;
+    });
+
+    // Grand total
+    const grandTotal = users.reduce((sum, user) => {
+      const memberTotal = Object.values(memberData[user.name] || {}).reduce((sum: number, amount: any) => sum + (Number(amount) || 0), 0);
+      return sum + memberTotal;
+    }, 0);
+    totalRow['Total Amount'] = grandTotal;
+
+    // Add total row to data
+    data.push(totalRow);
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Funding Report');
-    XLSX.writeFile(wb, `Funding_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Member Funding Report');
+    XLSX.writeFile(wb, `Member_Funding_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
+  // Function to delete a log entry
+  const handleDeleteLog = async (logId: string, logDetails: string) => {
+    if (!isAdmin) {
+      alert('শুধুমাত্র অ্যাডমিনরা ইতিহাস মুছতে পারেন।');
+      return;
+    }
+
+    if (!confirm(`আপনি কি নিশ্চিত যে এই ইতিহাস মুছতে চান?\n\n"${logDetails}"\n\nএই কাজটি ফিরিয়ে আনা যাবে না।`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, 'logs', logId));
+      alert('ইতিহাস সফলভাবে মুছে ফেলা হয়েছে!');
+    } catch (err) {
+      console.error('Error deleting log:', err);
+      alert('ইতিহাস মুছতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to share Excel file
+  const shareExcelFile = async () => {
+    // First create the Excel file
+    const memberData: Record<string, Record<string, number>> = {};
+    
+    // Initialize all members with 0 for all months
+    users.forEach(user => {
+      memberData[user.name] = {};
+      allMonthsYears.forEach(monthYear => {
+        memberData[user.name][monthYear] = 0;
+      });
+    });
+
+    // Fill in actual amounts
+    fundings.forEach(f => {
+      const monthYear = `${f.month} ${f.year}`;
+      if (memberData[f.userName]) {
+        memberData[f.userName][monthYear] = f.amount;
+      }
+    });
+
+    // Convert to Excel rows
+    const data = users.map(user => {
+      const row: any = {
+        'Member Name': user.name,
+        'Phone': user.phone || user.email || '',
+        'Role': user.role || 'member'
+      };
+
+      // Add month columns
+      allMonthsYears.forEach(monthYear => {
+        row[monthYear] = memberData[user.name]?.[monthYear] || 0;
+      });
+
+      // Calculate total for this member
+      const memberTotal = Object.values(memberData[user.name] || {}).reduce((sum: number, amount: any) => sum + (Number(amount) || 0), 0);
+      row['Total Amount'] = memberTotal;
+
+      return row;
+    });
+
+    // Add total row
+    const totalRow: any = {
+      'Member Name': 'TOTAL',
+      'Phone': '',
+      'Role': ''
+    };
+
+    // Calculate totals for each month
+    allMonthsYears.forEach(monthYear => {
+      const monthTotal = users.reduce((sum, user) => sum + (memberData[user.name]?.[monthYear] || 0), 0);
+      totalRow[monthYear] = monthTotal;
+    });
+
+    // Grand total
+    const grandTotal = users.reduce((sum, user) => {
+      const memberTotal = Object.values(memberData[user.name] || {}).reduce((sum: number, amount: any) => sum + (Number(amount) || 0), 0);
+      return sum + memberTotal;
+    }, 0);
+    totalRow['Total Amount'] = grandTotal;
+
+    // Add total row to data
+    data.push(totalRow);
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Member Funding Report');
+    
+    // Generate Excel file
+    const excelBlob = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const fileName = `Member_Funding_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    const file = new File([excelBlob], fileName, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    
+    // Check if Web Share API is available
+    if (navigator.share && navigator.canShare) {
+      try {
+        const shareData = {
+          files: [file],
+          title: 'Member Funding Report',
+          text: `Check out the funding report for ${fundName || 'our fund'}. Total collected: ${totalAmount.toLocaleString('bn-BD')} ৳`
+        };
+        
+        // Check if files can be shared
+        if (navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+          return; // Successfully shared, exit function
+        }
+      } catch (err) {
+        console.error('Error sharing:', err);
+        // Fallback to download
+      }
+    }
+    
+    // Web Share API not available or failed, fallback to download
+    alert('শেয়ার অপশন আপনার ডিভাইসে সাপোর্ট করে না। ফাইল ডাউনলোড হচ্ছে...');
+    XLSX.writeFile(wb, fileName);
   };
 
   return (
     <div className="space-y-6 pb-12">
       {/* Header Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -130,6 +329,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
               <div className="w-1.5 h-1.5 bg-blue-600 rounded-full" />
               <span>সক্রিয় সদস্য তালিকা</span>
             </div>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white rounded-[2rem] p-7 border border-slate-100 shadow-sm relative overflow-hidden"
+        >
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center">
+                <UserIcon size={16} />
+              </div>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">সর্বোচ্চ জমাকারী</p>
+            </div>
+            {Object.keys(memberTotals).length > 0 ? (
+              <>
+                <h3 className="text-2xl font-black text-slate-800 tracking-tight">
+                  {Object.entries(memberTotals).sort((a, b) => b[1] - a[1])[0]?.[0]}
+                </h3>
+                <div className="mt-2 flex items-center gap-1.5 text-purple-600 text-[10px] font-black uppercase tracking-tighter">
+                  <div className="w-1.5 h-1.5 bg-purple-600 rounded-full" />
+                  <span>{Object.entries(memberTotals).sort((a, b) => b[1] - a[1])[0]?.[1].toLocaleString('bn-BD')} ৳</span>
+                </div>
+              </>
+            ) : (
+              <h3 className="text-2xl font-black text-slate-400 tracking-tight">কোনো তথ্য নেই</h3>
+            )}
           </div>
         </motion.div>
       </div>
@@ -203,13 +431,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
             <History size={16} />
             {showLogs ? 'তালিকায় ফিরুন' : 'ইতিহাস দেখুন'}
           </button>
-          <button
-            onClick={exportToExcel}
-            className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95 uppercase tracking-widest"
-          >
-            <Download size={16} />
-            এক্সেল রিপোর্ট
-          </button>
+          <div className="flex-1 flex gap-2">
+            <button
+              onClick={exportToExcel}
+              className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95 uppercase tracking-widest"
+            >
+              <Download size={16} />
+              ডাউনলোড
+            </button>
+            <button
+              onClick={shareExcelFile}
+              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95 uppercase tracking-widest"
+            >
+              <Share2 size={16} />
+              শেয়ার
+            </button>
+          </div>
         </div>
       </div>
 
@@ -241,11 +478,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
                     </span>
                   </div>
                   <p className="text-slate-700 text-sm font-medium leading-relaxed">{log.details}</p>
-                  <div className="mt-3 pt-3 border-t border-slate-50 flex items-center gap-2">
-                    <div className="w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-500">
-                      {log.adminName.charAt(0)}
+                  <div className="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-500">
+                        {log.adminName.charAt(0)}
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">অ্যাডমিন: {log.adminName}</p>
                     </div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">অ্যাডমিন: {log.adminName}</p>
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleDeleteLog(log.id, log.details)}
+                        disabled={loading}
+                        className="text-red-600 hover:text-red-700 text-xs font-bold py-1 px-2 rounded-lg hover:bg-red-50 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1"
+                      >
+                        <Trash2 size={12} />
+                        মুছুন
+                      </button>
+                    )}
                   </div>
                 </div>
               )) : (

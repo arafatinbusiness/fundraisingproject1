@@ -166,6 +166,116 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
     }
   };
 
+  // Function to share to WhatsApp for all members individually
+  const shareToWhatsApp = () => {
+    // Get members with phone numbers
+    const membersWithPhone = users.filter(user => user.phone || user.email);
+    
+    if (membersWithPhone.length === 0) {
+      alert('কোনো সদস্যের ফোন নম্বর পাওয়া যায়নি। WhatsApp শেয়ার করার জন্য ফোন নম্বর প্রয়োজন।');
+      return;
+    }
+
+    // Create personalized message for each member
+    const memberData: Record<string, Record<string, number>> = {};
+    
+    // Initialize all members with 0 for all months
+    users.forEach(user => {
+      memberData[user.name] = {};
+      allMonthsYears.forEach(monthYear => {
+        memberData[user.name][monthYear] = 0;
+      });
+    });
+
+    // Fill in actual amounts
+    fundings.forEach(f => {
+      const monthYear = `${f.month} ${f.year}`;
+      if (memberData[f.userName]) {
+        memberData[f.userName][monthYear] = f.amount;
+      }
+    });
+
+    // Calculate totals for each member
+    const memberTotalsForWhatsApp: Record<string, number> = {};
+    users.forEach(user => {
+      const total = Object.values(memberData[user.name] || {}).reduce((sum: number, amount: any) => sum + (Number(amount) || 0), 0);
+      memberTotalsForWhatsApp[user.name] = total;
+    });
+
+    // Create WhatsApp messages for each member
+    let whatsappLinks = '';
+    
+    membersWithPhone.forEach((user, index) => {
+      const phone = user.phone || user.email || '';
+      const cleanPhone = phone.replace(/\D/g, ''); // Remove non-digits
+      
+      if (cleanPhone.length < 10) {
+        return; // Skip invalid phone numbers
+      }
+
+      const memberTotal = memberTotalsForWhatsApp[user.name] || 0;
+      const currentDate = format(new Date(), 'dd MMM yyyy', { locale: bn });
+      
+      // Create personalized message in Bengali
+      const message = `*${fundName || 'তহবিল'} রিপোর্ট*\n\n` +
+        `প্রিয় ${user.name},\n\n` +
+        `আপনার তহবিল সংগ্রহ সংক্রান্ত রিপোর্ট:\n` +
+        `মোট জমা: ${memberTotal.toLocaleString('bn-BD')} ৳\n` +
+        `রিপোর্ট তারিখ: ${currentDate}\n\n` +
+        `*মাস অনুযায়ী জমা:*\n` +
+        allMonthsYears.map(monthYear => {
+          const amount = memberData[user.name]?.[monthYear] || 0;
+          return amount > 0 ? `• ${monthYear}: ${amount.toLocaleString('bn-BD')} ৳` : null;
+        }).filter(Boolean).join('\n') +
+        `\n\nমোট সংগ্রহ: ${totalAmount.toLocaleString('bn-BD')} ৳\n` +
+        `মোট সদস্য: ${users.length} জন\n\n` +
+        `ধন্যবাদান্তে,\n${fundName || 'তহবিল ব্যবস্থাপনা'}`;
+
+      // URL encode the message
+      const encodedMessage = encodeURIComponent(message);
+      
+      // Create WhatsApp link
+      const whatsappLink = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+      
+      whatsappLinks += `${index + 1}. ${user.name}: ${whatsappLink}\n`;
+    });
+
+    if (!whatsappLinks) {
+      alert('কোনো বৈধ ফোন নম্বর পাওয়া যায়নি। WhatsApp শেয়ার করার জন্য ফোন নম্বর প্রয়োজন।');
+      return;
+    }
+
+    // Show confirmation with links
+    const confirmMessage = `নিম্নলিখিত ${membersWithPhone.length} জন সদস্যের WhatsApp নম্বরে রিপোর্ট পাঠানো হবে:\n\n` +
+      membersWithPhone.map(user => `• ${user.name}: ${user.phone || user.email}`).join('\n') +
+      `\n\nআপনি কি নিশ্চিত?`;
+    
+    if (confirm(confirmMessage)) {
+      // Open first WhatsApp link
+      const firstMember = membersWithPhone[0];
+      const firstPhone = (firstMember.phone || firstMember.email || '').replace(/\D/g, '');
+      const firstMessage = `*${fundName || 'তহবিল'} রিপোর্ট*\n\n` +
+        `প্রিয় ${firstMember.name},\n\n` +
+        `আপনার তহবিল সংগ্রহ সংক্রান্ত রিপোর্ট:\n` +
+        `মোট জমা: ${(memberTotalsForWhatsApp[firstMember.name] || 0).toLocaleString('bn-BD')} ৳\n` +
+        `রিপোর্ট তারিখ: ${format(new Date(), 'dd MMM yyyy', { locale: bn })}\n\n` +
+        `মোট সংগ্রহ: ${totalAmount.toLocaleString('bn-BD')} ৳\n` +
+        `মোট সদস্য: ${users.length} জন\n\n` +
+        `ধন্যবাদান্তে,\n${fundName || 'তহবিল ব্যবস্থাপনা'}`;
+      
+      const encodedFirstMessage = encodeURIComponent(firstMessage);
+      window.open(`https://wa.me/${firstPhone}?text=${encodedFirstMessage}`, '_blank');
+      
+      // Show remaining links for manual sending
+      if (membersWithPhone.length > 1) {
+        alert(`প্রথম সদস্য ${firstMember.name}-এর কাছে রিপোর্ট পাঠানো হয়েছে।\n\n` +
+          `বাকি ${membersWithPhone.length - 1} জনের লিংক:\n\n` +
+          whatsappLinks.split('\n').slice(1).join('\n') +
+          `\n\nপ্রতিটি লিংক ক্লিক করে বাকি সদস্যদের কাছে রিপোর্ট পাঠান।`);
+      }
+    }
+  };
+
   // Function to share Excel file
   const shareExcelFile = async () => {
     // First create the Excel file
@@ -440,11 +550,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
               ডাউনলোড
             </button>
             <button
-              onClick={shareExcelFile}
-              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95 uppercase tracking-widest"
+              onClick={shareToWhatsApp}
+              className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-green-700 transition-all shadow-lg shadow-green-100 active:scale-95 uppercase tracking-widest"
             >
               <Share2 size={16} />
-              শেয়ার
+              WhatsApp
             </button>
           </div>
         </div>

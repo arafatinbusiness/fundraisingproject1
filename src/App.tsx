@@ -6,6 +6,7 @@ import { Layout } from './components/Layout';
 import { Auth } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
 import { AdminPanel } from './components/AdminPanel';
+import { LandingPage } from './components/LandingPage';
 import { User, Funding, Log, FundInfo } from './types';
 import { Loader2, AlertCircle, ShieldCheck, LayoutDashboard } from 'lucide-react';
 
@@ -15,6 +16,7 @@ const App: React.FC = () => {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [view, setView] = useState<'dashboard' | 'admin'>('dashboard');
+  const [showLanding, setShowLanding] = useState(true);
 
   const [users, setUsers] = useState<User[]>([]);
   const [fundings, setFundings] = useState<Funding[]>([]);
@@ -126,6 +128,16 @@ const App: React.FC = () => {
         </div>
       </Layout>
     );
+  }
+
+  // Show landing page first if user is not logged in
+  if (showLanding && !user) {
+    return <LandingPage onLogin={() => setShowLanding(false)} />;
+  }
+
+  // If user is not logged in, show auth screen
+  if (!user) {
+    return <Auth />;
   }
 
   // Always show content (public read-only access)

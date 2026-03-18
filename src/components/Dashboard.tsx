@@ -140,41 +140,66 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
     return monthlyData;
   }, [selectedMember, fundings]);
 
-  // Export to Excel with professional styling
+  // Export to Excel with professional styling (member rows with month columns)
   const exportToExcel = () => {
-    // Create header row with styling
-    const headers = [
-      ['তহবিল সংগ্রহ রিপোর্ট', '', '', ''],
-      [`তহবিলের নাম: ${fundName || 'তহবিল ড্যাশবোর্ড'}`, '', '', ''],
-      [`রিপোর্ট তারিখ: ${format(new Date(), 'dd MMMM yyyy', { locale: bn })}`, '', '', ''],
-      ['', '', '', ''],
-      ['সদস্যের নাম', 'মাস', 'পরিমাণ (৳)', 'স্ট্যাটাস']
-    ];
-
-    // Create data rows
-    const data = memberData.map(item => [
-      item.user.name,
-      item.displayText,
-      item.contribution,
-      item.hasContributed ? 'জমা হয়েছে' : 'জমা হয়নি'
-    ]);
-
-    // Add summary rows
-    const totalContributors = memberData.filter(item => item.hasContributed).length;
-    const totalNonContributors = memberData.filter(item => !item.hasContributed).length;
-    const totalAmountAll = memberData.reduce((sum, item) => sum + item.contribution, 0);
+    // Get selected year or use current year
+    const targetYear = selectedYear || new Date().getFullYear().toString();
     
-    const summary = [
-      ['', '', '', ''],
-      ['সারাংশ', '', '', ''],
-      [`মোট সদস্য: ${memberData.length} জন`, '', '', ''],
-      [`জমা দেওয়া সদস্য: ${totalContributors} জন`, '', '', ''],
-      [`জমা না দেওয়া সদস্য: ${totalNonContributors} জন`, '', '', ''],
-      [`মোট সংগ্রহ: ${totalAmountAll.toLocaleString('bn-BD')} ৳`, '', '', '']
+    // Create headers: Member name + all months
+    const headers = [
+      ['তহবিল সংগ্রহ রিপোর্ট', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [`তহবিলের নাম: ${fundName || 'তহবিল ড্যাশবোর্ড'}`, '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [`রিপোর্ট বছর: ${targetYear}`, '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [`রিপোর্ট তারিখ: ${format(new Date(), 'dd MMMM yyyy', { locale: bn })}`, '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      ['', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      ['সদস্যের নাম', ...MONTHS_BN, 'মোট', 'স্ট্যাটাস']
     ];
+
+    // Create data rows: each member with contributions for each month
+    const data = users.map(user => {
+      const row = [user.name];
+      let total = 0;
+      let hasContributed = false;
+      
+      // Add amount for each month
+      MONTHS_BN.forEach(month => {
+        const funding = fundings.find(f => 
+          f.userName === user.name && 
+          f.month === month && 
+          f.year.toString() === targetYear
+        );
+        const amount = funding?.amount || 0;
+        row.push(amount);
+        total += amount;
+        if (amount > 0) hasContributed = true;
+      });
+      
+      // Add total and status
+      row.push(total);
+      row.push(hasContributed ? 'জমা হয়েছে' : 'জমা হয়নি');
+      
+      return row;
+    });
+
+    // Add summary row
+    const summaryRow = ['সারাংশ'];
+    let grandTotal = 0;
+    
+    // Month totals
+    MONTHS_BN.forEach(month => {
+      const monthTotal = fundings
+        .filter(f => f.month === month && f.year.toString() === targetYear)
+        .reduce((sum, f) => sum + f.amount, 0);
+      summaryRow.push(monthTotal);
+      grandTotal += monthTotal;
+    });
+    
+    // Add grand total and summary
+    summaryRow.push(grandTotal);
+    summaryRow.push(`মোট সংগ্রহ: ${grandTotal.toLocaleString('bn-BD')} ৳`);
 
     // Combine all rows
-    const allRows = [...headers, ...data, ...summary];
+    const allRows = [...headers, ...data, ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''], summaryRow];
 
     // Create worksheet
     const ws = XLSX.utils.aoa_to_sheet(allRows);
@@ -182,14 +207,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
     // Define column widths
     const colWidths = [
       { wch: 25 }, // সদস্যের নাম
-      { wch: 20 }, // মাস
-      { wch: 15 }, // পরিমাণ
+      ...MONTHS_BN.map(() => ({ wch: 12 })), // Month columns
+      { wch: 15 }, // মোট
       { wch: 15 }  // স্ট্যাটাস
     ];
     ws['!cols'] = colWidths;
 
     // Apply styling through cell properties
-    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:E1');
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:O1');
     
     for (let R = range.s.r; R <= range.e.r; ++R) {
       for (let C = range.s.c; C <= range.e.c; ++C) {
@@ -198,7 +223,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
         
         if (!ws[cell_ref]) continue;
         
-        // Header styling (rows 1-5)
+        // Title rows (rows 0-4)
         if (R < 5) {
           ws[cell_ref].s = {
             font: { bold: true, sz: R === 0 ? 16 : 12 },
@@ -208,11 +233,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
         }
         
         // Column headers (row 5)
-        if (R === 4) {
+        if (R === 5) {
           ws[cell_ref].s = {
-            font: { bold: true, color: { rgb: "FFFFFF" } },
+            font: { bold: true, color: { rgb: C === 0 ? "000000" : "FFFFFF" } },
             alignment: { horizontal: 'center', vertical: 'center' },
-            fill: { fgColor: { rgb: "2196F3" } }, // Blue background
+            fill: { fgColor: { rgb: C === 0 ? "FFE0B2" : "2196F3" } }, // Orange for name, blue for months
             border: {
               top: { style: 'thin', color: { rgb: "000000" } },
               bottom: { style: 'thin', color: { rgb: "000000" } },
@@ -222,52 +247,98 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
           };
         }
         
-        // Data rows
-        if (R >= 5 && R < 5 + memberData.length) {
-          const dataIndex = R - 5;
-          const item = memberData[dataIndex];
+        // Data rows (member rows)
+        if (R >= 6 && R < 6 + users.length) {
+          const dataIndex = R - 6;
+          const user = users[dataIndex];
+          const hasContributed = data[dataIndex][data[dataIndex].length - 1] === 'জমা হয়েছে';
           
-          ws[cell_ref].s = {
-            font: { bold: C === 2 ? true : false }, // Bold for amount column
-            alignment: { 
-              horizontal: C === 2 ? 'right' : 'left',
-              vertical: 'center' 
-            },
-            border: {
-              bottom: { style: 'thin', color: { rgb: "E0E0E0" } }
-            },
-            fill: item.hasContributed 
-              ? { fgColor: { rgb: "F1F8E9" } } // Light green for contributors
-              : { fgColor: { rgb: "FFEBEE" } } // Light red for non-contributors
-          };
-          
-          // Format amount column as number with comma separator
-          if (C === 2) {
+          // Member name cell
+          if (C === 0) {
+            ws[cell_ref].s = {
+              font: { bold: true },
+              alignment: { horizontal: 'left', vertical: 'center' },
+              fill: { fgColor: { rgb: hasContributed ? "F1F8E9" : "FFEBEE" } },
+              border: {
+                bottom: { style: 'thin', color: { rgb: "E0E0E0" } }
+              }
+            };
+          }
+          // Month amount cells
+          else if (C <= MONTHS_BN.length) {
+            const amount = data[dataIndex][C];
+            ws[cell_ref].s = {
+              font: { bold: amount > 0 },
+              alignment: { horizontal: 'right', vertical: 'center' },
+              fill: { fgColor: { rgb: amount > 0 ? "E8F5E9" : "F5F5F5" } },
+              border: {
+                bottom: { style: 'thin', color: { rgb: "E0E0E0" } }
+              }
+            };
+            // Format as number with comma
+            if (amount > 0) {
+              ws[cell_ref].z = '#,##0';
+            }
+          }
+          // Total column
+          else if (C === MONTHS_BN.length + 1) {
+            const total = data[dataIndex][MONTHS_BN.length + 1];
+            ws[cell_ref].s = {
+              font: { bold: true, color: { rgb: total > 0 ? "1B5E20" : "757575" } },
+              alignment: { horizontal: 'right', vertical: 'center' },
+              fill: { fgColor: { rgb: total > 0 ? "C8E6C9" : "F5F5F5" } },
+              border: {
+                bottom: { style: 'thin', color: { rgb: "E0E0E0" } }
+              }
+            };
             ws[cell_ref].z = '#,##0';
+          }
+          // Status column
+          else if (C === MONTHS_BN.length + 2) {
+            ws[cell_ref].s = {
+              font: { bold: true, color: { rgb: hasContributed ? "1B5E20" : "D32F2F" } },
+              alignment: { horizontal: 'center', vertical: 'center' },
+              fill: { fgColor: { rgb: hasContributed ? "E8F5E9" : "FFEBEE" } },
+              border: {
+                bottom: { style: 'thin', color: { rgb: "E0E0E0" } }
+              }
+            };
           }
         }
         
-        // Summary rows
-        if (R >= 5 + memberData.length) {
+        // Summary row
+        if (R === 6 + users.length + 1) {
           ws[cell_ref].s = {
-            font: { bold: true, sz: C === 0 ? 12 : 11 },
-            alignment: { horizontal: 'left', vertical: 'center' },
-            fill: { fgColor: { rgb: "F5F5F5" } } // Gray background
+            font: { bold: true, sz: 12 },
+            alignment: { 
+              horizontal: C === 0 ? 'left' : 'right',
+              vertical: 'center' 
+            },
+            fill: { fgColor: { rgb: "F5F5F5" } },
+            border: {
+              top: { style: 'medium', color: { rgb: "000000" } },
+              bottom: { style: 'thin', color: { rgb: "000000" } }
+            }
           };
+          // Format numbers in summary
+          if (C > 0 && C <= MONTHS_BN.length + 1) {
+            ws[cell_ref].z = '#,##0';
+          }
         }
       }
     }
 
-    // Merge cells for title
+    // Merge cells for title rows
     ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, // Title row
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } }, // Fund name
-      { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } }  // Report date
+      { s: { r: 0, c: 0 }, e: { r: 0, c: MONTHS_BN.length + 3 } }, // Main title
+      { s: { r: 1, c: 0 }, e: { r: 1, c: MONTHS_BN.length + 3 } }, // Fund name
+      { s: { r: 2, c: 0 }, e: { r: 2, c: MONTHS_BN.length + 3 } }, // Report year
+      { s: { r: 3, c: 0 }, e: { r: 3, c: MONTHS_BN.length + 3 } }  // Report date
     ];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'তহবিল রিপোর্ট');
-    XLSX.writeFile(wb, `তহবিল_রিপোর্ট_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, `${targetYear} তহবিল রিপোর্ট`);
+    XLSX.writeFile(wb, `তহবিল_রিপোর্ট_${targetYear}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
   // Clear all filters

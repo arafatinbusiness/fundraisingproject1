@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Download, Search, Calendar, User as UserIcon, ChevronRight, X, History, Clock, ChevronLeft, ChevronRight as ChevronRightIcon, Phone, MessageCircle } from 'lucide-react';
+import { Download, Search, Calendar, User as UserIcon, ChevronRight, X, History, Clock, ChevronLeft, ChevronRight as ChevronRightIcon, Phone, MessageCircle, ArrowLeft } from 'lucide-react';
 import { Funding, User, Log } from '../types';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -711,9 +711,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
                           e.stopPropagation();
                           setViewMode('main');
                         }}
-                        className="text-slate-600 hover:text-slate-800 px-3 py-1 rounded-lg hover:bg-slate-100 transition-colors"
+                        className="flex items-center gap-2 text-slate-600 hover:text-slate-800 px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors"
                       >
-                        ← ফিরে যান
+                        <ArrowLeft size={18} />
+                        <span className="font-medium">ফিরে যান</span>
                       </button>
                     </div>
                     <div className="flex items-center gap-3">

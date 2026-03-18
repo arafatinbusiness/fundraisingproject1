@@ -343,6 +343,80 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
         </motion.div>
       </div>
 
+      {/* Month Selector */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
+            <Calendar size={16} className="text-emerald-600" />
+            মাস সিলেক্ট করুন
+          </h3>
+          <span className="text-[10px] font-bold text-slate-400 uppercase">
+            {selectedMonth && selectedYear 
+              ? `${selectedMonth} ${selectedYear} নির্বাচিত`
+              : selectedMonth 
+                ? `${selectedMonth} নির্বাচিত`
+                : selectedYear
+                  ? `${selectedYear} নির্বাচিত`
+                  : 'সকল মাস দেখানো হচ্ছে'
+            }
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {MONTHS_BN.map(month => (
+            <button
+              key={month}
+              onClick={() => {
+                setSelectedMonth(selectedMonth === month ? '' : month);
+                setViewMode('summary'); // Switch to summary view when selecting month
+              }}
+              className={`py-3 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                selectedMonth === month
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {month}
+            </button>
+          ))}
+        </div>
+        
+        {/* Year Selector */}
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-bold text-slate-600">বছর:</span>
+            <div className="flex flex-wrap gap-1">
+              {years.map(year => (
+                <button
+                  key={year}
+                  onClick={() => setSelectedYear(selectedYear === year ? '' : year)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    selectedYear === year
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* Clear Filters */}
+          {(selectedMonth || selectedYear) && (
+            <button
+              onClick={() => {
+                setSelectedMonth('');
+                setSelectedYear('');
+              }}
+              className="text-xs text-slate-500 hover:text-slate-700 font-medium flex items-center gap-1"
+            >
+              <span>সকল ফিল্টার ক্লিয়ার করুন</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Search and Filters */}
       <div className="space-y-4">
         <div className="flex gap-2">

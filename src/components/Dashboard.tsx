@@ -47,6 +47,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
     const data = users.map(user => {
       let contribution = 0;
       let monthYear = '';
+      let displayText = '';
       
       if (selectedMonth && selectedYear) {
         // Find contribution for specific month/year
@@ -57,6 +58,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
         );
         contribution = funding?.amount || 0;
         monthYear = `${selectedMonth} ${selectedYear}`;
+        displayText = `${selectedMonth} ${selectedYear}`;
       } else if (selectedMonth) {
         // Find total for selected month across all years
         const contributions = fundings.filter(f => 
@@ -64,6 +66,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
         );
         contribution = contributions.reduce((sum, f) => sum + f.amount, 0);
         monthYear = selectedMonth;
+        // Show years when this member contributed for this month
+        const years = [...new Set(contributions.map(f => f.year.toString()))].sort((a, b) => b.localeCompare(a));
+        displayText = years.length > 0 
+          ? `${selectedMonth} (${years.join(', ')})`
+          : `${selectedMonth}`;
       } else if (selectedYear) {
         // Find total for selected year across all months
         const contributions = fundings.filter(f => 
@@ -71,17 +78,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
         );
         contribution = contributions.reduce((sum, f) => sum + f.amount, 0);
         monthYear = selectedYear;
+        displayText = selectedYear;
       } else {
         // Find total across all time
         const contributions = fundings.filter(f => f.userName === user.name);
         contribution = contributions.reduce((sum, f) => sum + f.amount, 0);
         monthYear = 'সকল মাস';
+        // Show total years of contribution
+        const years = [...new Set(contributions.map(f => f.year.toString()))].sort((a, b) => b.localeCompare(a));
+        displayText = years.length > 0 
+          ? `সকল মাস (${years.join(', ')})`
+          : 'সকল মাস';
       }
       
       return {
         user,
         contribution,
         monthYear,
+        displayText,
         hasContributed: contribution > 0
       };
     });
@@ -126,19 +140,134 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
     return monthlyData;
   }, [selectedMember, fundings]);
 
-  // Export to Excel
+  // Export to Excel with professional styling
   const exportToExcel = () => {
-    const data = memberData.map(item => ({
-      'সদস্যের নাম': item.user.name,
-      'মাস': item.monthYear,
-      'পরিমাণ': item.contribution,
-      'স্ট্যাটাস': item.hasContributed ? 'জমা হয়েছে' : 'জমা হয়নি'
-    }));
+    // Create header row with styling
+    const headers = [
+      ['তহবিল সংগ্রহ রিপোর্ট', '', '', ''],
+      [`তহবিলের নাম: ${fundName || 'তহবিল ড্যাশবোর্ড'}`, '', '', ''],
+      [`রিপোর্ট তারিখ: ${format(new Date(), 'dd MMMM yyyy', { locale: bn })}`, '', '', ''],
+      ['', '', '', ''],
+      ['সদস্যের নাম', 'মাস', 'পরিমাণ (৳)', 'স্ট্যাটাস']
+    ];
 
-    const ws = XLSX.utils.json_to_sheet(data);
+    // Create data rows
+    const data = memberData.map(item => [
+      item.user.name,
+      item.displayText,
+      item.contribution,
+      item.hasContributed ? 'জমা হয়েছে' : 'জমা হয়নি'
+    ]);
+
+    // Add summary rows
+    const totalContributors = memberData.filter(item => item.hasContributed).length;
+    const totalNonContributors = memberData.filter(item => !item.hasContributed).length;
+    const totalAmountAll = memberData.reduce((sum, item) => sum + item.contribution, 0);
+    
+    const summary = [
+      ['', '', '', ''],
+      ['সারাংশ', '', '', ''],
+      [`মোট সদস্য: ${memberData.length} জন`, '', '', ''],
+      [`জমা দেওয়া সদস্য: ${totalContributors} জন`, '', '', ''],
+      [`জমা না দেওয়া সদস্য: ${totalNonContributors} জন`, '', '', ''],
+      [`মোট সংগ্রহ: ${totalAmountAll.toLocaleString('bn-BD')} ৳`, '', '', '']
+    ];
+
+    // Combine all rows
+    const allRows = [...headers, ...data, ...summary];
+
+    // Create worksheet
+    const ws = XLSX.utils.aoa_to_sheet(allRows);
+
+    // Define column widths
+    const colWidths = [
+      { wch: 25 }, // সদস্যের নাম
+      { wch: 20 }, // মাস
+      { wch: 15 }, // পরিমাণ
+      { wch: 15 }  // স্ট্যাটাস
+    ];
+    ws['!cols'] = colWidths;
+
+    // Apply styling through cell properties
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:E1');
+    
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cell_address = { c: C, r: R };
+        const cell_ref = XLSX.utils.encode_cell(cell_address);
+        
+        if (!ws[cell_ref]) continue;
+        
+        // Header styling (rows 1-5)
+        if (R < 5) {
+          ws[cell_ref].s = {
+            font: { bold: true, sz: R === 0 ? 16 : 12 },
+            alignment: { horizontal: 'center', vertical: 'center' },
+            fill: { fgColor: { rgb: R === 0 ? "4CAF50" : "E8F5E9" } } // Green background
+          };
+        }
+        
+        // Column headers (row 5)
+        if (R === 4) {
+          ws[cell_ref].s = {
+            font: { bold: true, color: { rgb: "FFFFFF" } },
+            alignment: { horizontal: 'center', vertical: 'center' },
+            fill: { fgColor: { rgb: "2196F3" } }, // Blue background
+            border: {
+              top: { style: 'thin', color: { rgb: "000000" } },
+              bottom: { style: 'thin', color: { rgb: "000000" } },
+              left: { style: 'thin', color: { rgb: "000000" } },
+              right: { style: 'thin', color: { rgb: "000000" } }
+            }
+          };
+        }
+        
+        // Data rows
+        if (R >= 5 && R < 5 + memberData.length) {
+          const dataIndex = R - 5;
+          const item = memberData[dataIndex];
+          
+          ws[cell_ref].s = {
+            font: { bold: C === 2 ? true : false }, // Bold for amount column
+            alignment: { 
+              horizontal: C === 2 ? 'right' : 'left',
+              vertical: 'center' 
+            },
+            border: {
+              bottom: { style: 'thin', color: { rgb: "E0E0E0" } }
+            },
+            fill: item.hasContributed 
+              ? { fgColor: { rgb: "F1F8E9" } } // Light green for contributors
+              : { fgColor: { rgb: "FFEBEE" } } // Light red for non-contributors
+          };
+          
+          // Format amount column as number with comma separator
+          if (C === 2) {
+            ws[cell_ref].z = '#,##0';
+          }
+        }
+        
+        // Summary rows
+        if (R >= 5 + memberData.length) {
+          ws[cell_ref].s = {
+            font: { bold: true, sz: C === 0 ? 12 : 11 },
+            alignment: { horizontal: 'left', vertical: 'center' },
+            fill: { fgColor: { rgb: "F5F5F5" } } // Gray background
+          };
+        }
+      }
+    }
+
+    // Merge cells for title
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, // Title row
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } }, // Fund name
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } }  // Report date
+    ];
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Member Contributions');
-    XLSX.writeFile(wb, `Contributions_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'তহবিল রিপোর্ট');
+    XLSX.writeFile(wb, `তহবিল_রিপোর্ট_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
   // Clear all filters
@@ -332,7 +461,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
                         </td>
                         <td className="p-4 text-center">
                           <div className="inline-block px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium">
-                            {item.monthYear}
+                            {item.displayText}
                           </div>
                         </td>
                         <td className="p-4 text-center">

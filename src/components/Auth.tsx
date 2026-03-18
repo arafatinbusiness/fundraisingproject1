@@ -1,11 +1,34 @@
-import React, { useState } from 'react';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import React, { useState, useEffect } from 'react';
+import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '../firebase';
 import { LogIn, AlertCircle, ExternalLink } from 'lucide-react';
 
 export const Auth: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Handle redirect result on page load
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        setIsLoading(true);
+        const result = await getRedirectResult(auth);
+        if (result) {
+          // User successfully signed in via redirect
+          console.log('Signed in via redirect:', result.user.email);
+        }
+      } catch (error: any) {
+        console.error('Redirect sign-in failed:', error);
+        if (error?.code === 'auth/unauthorized-domain') {
+          const currentDomain = window.location.hostname;
+          setError(`ডোমেইন অথোরাইজেশন সমস্যা: ${currentDomain} ডোমেইনটি Firebase Authentication-এ যুক্ত নেই। দয়া নিচের নির্দেশনা অনুসরণ করুন:`);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    handleRedirectResult();
+  }, []);
 
   const handleLogin = async () => {
     setError(null);
@@ -18,25 +41,35 @@ export const Auth: React.FC = () => {
     
     if (isLocalhost) {
       // For local development, show specific instructions
-      setError(`লোকাল ডেভেলপমেন্ট: ${window.location.hostname} ডোমেইনে Firebase Authentication কাজ করবে না। প্রোডাকশন ডেপ্লয়মেন্টের জন্য নিচের নির্দেশনা অনুসরণ করুন:`);
+      setError(`লোকাল ডেভেলপমেন্ট: ${window.location.hostname} ডোমেইনে Firebase Authentication কাজ করবে না। প্রোডাকশন ডেপ্লয়মেন্টের জন্য নিচের নির্দেশনা অনুসরণ করুন:`);
       setIsLoading(false);
       return;
     }
     
     const provider = new GoogleAuthProvider();
+    
     try {
+      // Try popup first
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      console.error('Login failed:', error);
+      console.error('Popup login failed:', error);
       
-      // Check for unauthorized domain error
-      if (error?.code === 'auth/unauthorized-domain') {
+      // If popup is blocked or fails, use redirect method
+      if (error?.code === 'auth/popup-blocked' || error?.code === 'auth/popup-closed-by-user') {
+        console.log('Popup blocked, using redirect method...');
+        try {
+          await signInWithRedirect(auth, provider);
+          return; // Redirect will happen, no need to continue
+        } catch (redirectError: any) {
+          console.error('Redirect login failed:', redirectError);
+          setError('লগইন ব্যর্থ হয়েছে। দয়া আবার চেষ্টা করুন।');
+        }
+      } else if (error?.code === 'auth/unauthorized-domain') {
         const currentDomain = window.location.hostname;
-        setError(`ডোমেইন অথোরাইজেশন সমস্যা: ${currentDomain} ডোমেইনটি Firebase Authentication-এ যুক্ত নেই। দয়া নিচের নির্দেশনা অনুসরণ করুন:`);
+        setError(`ডোমেইন অথোরাইজেশন সমস্যা: ${currentDomain} ডোমেইনটি Firebase Authentication-এ যুক্ত নেই। দয়া নিচের নির্দেশনা অনুসরণ করুন:`);
       } else {
-        setError('লগইন ব্যর্থ হয়েছে। দয়া আবার চেষ্টা করুন।');
+        setError('লগইন ব্যর্থ হয়েছে। দয়া আবার চেষ্টা করুন।');
       }
-    } finally {
       setIsLoading(false);
     }
   };

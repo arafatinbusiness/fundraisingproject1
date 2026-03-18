@@ -1,10 +1,12 @@
-import React, { useState, useMemo } from 'react';
-import { Download, Search, Calendar, User as UserIcon, ChevronRight, X } from 'lucide-react';
-import { Funding, User } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Download, Search, Calendar, User as UserIcon, ChevronRight, X, History, Clock, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import { Funding, User, Log } from '../types';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { bn } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
+import { db } from '../firebase';
+import { collection, query, orderBy, limit, startAfter, getDocs, DocumentSnapshot } from 'firebase/firestore';
 
 interface DashboardProps {
   fundings: Funding[];
@@ -22,13 +24,94 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
-  const [viewMode, setViewMode] = useState<'main' | 'member'>('main');
+  const [viewMode, setViewMode] = useState<'main' | 'member' | 'history'>('main');
 
   // Get available years
   const years = useMemo(() => {
     const yrs = new Set(fundings.map(f => f.year.toString()));
     return (Array.from(yrs) as string[]).sort((a, b) => b.localeCompare(a));
   }, [fundings]);
+
+  // State for logs and pagination
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const logsPerPage = 10;
+
+  // Fetch logs from Firebase
+  const fetchLogs = async (isInitial = true) => {
+    setLoadingLogs(true);
+    try {
+      let q;
+      if (isInitial) {
+        q = query(
+          collection(db, 'logs'),
+          orderBy('timestamp', 'desc'),
+          limit(logsPerPage)
+        );
+      } else if (lastVisible) {
+        q = query(
+          collection(db, 'logs'),
+          orderBy('timestamp', 'desc'),
+          startAfter(lastVisible),
+          limit(logsPerPage)
+        );
+      } else {
+        return;
+      }
+
+      const querySnapshot = await getDocs(q);
+      const newLogs: Log[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data() as any;
+        newLogs.push({ 
+          id: doc.id, 
+          type: data.type || '',
+          details: data.details || '',
+          timestamp: data.timestamp || '',
+          adminId: data.adminId || '',
+          adminName: data.adminName || ''
+        } as Log);
+      });
+
+      if (isInitial) {
+        setLogs(newLogs);
+      } else {
+        setLogs(prev => [...prev, ...newLogs]);
+      }
+
+      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1] || null);
+      setHasMore(querySnapshot.docs.length === logsPerPage);
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  // Load initial logs
+  useEffect(() => {
+    fetchLogs(true);
+  }, []);
+
+  // Load more logs
+  const loadMoreLogs = () => {
+    if (!loadingLogs && hasMore) {
+      fetchLogs(false);
+      setCurrentPage(prev => prev + 1);
+    }
+  };
+
+  // Go to previous page
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(prev => prev - 1);
+      // For simplicity, we'll just show first page
+      fetchLogs(true);
+    }
+  };
 
   // Filter fundings based on selected month/year
   const filteredFundings = useMemo(() => {
@@ -438,42 +521,73 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
         )}
       </div>
 
-      {/* Search */}
-      <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input
-            type="text"
-            placeholder="সদস্যের নাম খুঁজুন (যেমন: A, সজল, etc.)..."
-            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        
-        {/* Quick Member Access */}
-        {searchTerm && filteredMemberData.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-slate-100">
-            <p className="text-xs text-slate-500 mb-2">দ্রুত অ্যাক্সেস:</p>
-            <div className="flex flex-wrap gap-2">
-              {filteredMemberData.slice(0, 3).map(item => (
-                <button
-                  key={item.user.name}
-                  onClick={() => {
-                    setSelectedMember(item.user);
-                    setViewMode('member');
-                    setSearchTerm('');
-                  }}
-                  className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors"
-                >
-                  <UserIcon size={14} />
-                  {item.user.name} এর মাসিক হিসাব দেখুন
-                </button>
-              ))}
+      {/* Tab Navigation */}
+      <div className="bg-white rounded-2xl p-1 mb-4 shadow-sm">
+        <div className="flex">
+          <button
+            onClick={() => setViewMode('main')}
+            className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
+              viewMode === 'main' 
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' 
+                : 'text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            সদস্য তালিকা
+          </button>
+          <button
+            onClick={() => setViewMode('history')}
+            className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
+              viewMode === 'history' 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' 
+                : 'text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <History size={16} />
+              অ্যাক্টিভিটি লগ
             </div>
-          </div>
-        )}
+          </button>
+        </div>
       </div>
+
+      {/* Search (only show in main view) */}
+      {viewMode === 'main' && (
+        <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              type="text"
+              placeholder="সদস্যের নাম খুঁজুন (যেমন: A, সজল, etc.)..."
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          
+          {/* Quick Member Access */}
+          {searchTerm && filteredMemberData.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <p className="text-xs text-slate-500 mb-2">দ্রুত অ্যাক্সেস:</p>
+              <div className="flex flex-wrap gap-2">
+                {filteredMemberData.slice(0, 3).map(item => (
+                  <button
+                    key={item.user.name}
+                    onClick={() => {
+                      setSelectedMember(item.user);
+                      setViewMode('member');
+                      setSearchTerm('');
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors"
+                  >
+                    <UserIcon size={14} />
+                    {item.user.name} এর মাসিক হিসাব দেখুন
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         {viewMode === 'main' ? (
@@ -572,7 +686,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
               )}
             </div>
           </motion.div>
-        ) : (
+        ) : viewMode === 'member' ? (
           <motion.div
             key="member"
             initial={{ opacity: 0, y: 20 }}
@@ -682,6 +796,111 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
                 </div>
               </div>
             )}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="history"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            {/* History/Logs View */}
+            <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-slate-100 bg-blue-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
+                      <History size={20} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-800">অ্যাক্টিভিটি লগ</h2>
+                      <p className="text-sm text-slate-600">অ্যাডমিনদের সকল কার্যকলাপের ইতিহাস</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500">
+                      পৃষ্ঠা {currentPage}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4">
+                {loadingLogs && logs.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400">
+                    <p className="text-sm">লোড হচ্ছে...</p>
+                  </div>
+                ) : logs.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400">
+                    <p className="text-sm">কোনো অ্যাক্টিভিটি লগ পাওয়া যায়নি</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {logs.map((log) => (
+                      <div 
+                        key={log.id}
+                        className="p-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <h4 className="font-bold text-slate-800">{log.details}</h4>
+                            <p className="text-xs text-slate-500 mt-1">
+                              অ্যাডমিন: <span className="font-medium">{log.adminName}</span>
+                            </p>
+                          </div>
+                          <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-lg ${
+                            log.type.includes('delete') 
+                              ? 'bg-red-50 text-red-600' 
+                              : log.type.includes('update') 
+                              ? 'bg-emerald-50 text-emerald-600'
+                              : 'bg-blue-50 text-blue-600'
+                          }`}>
+                            {log.type}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <Clock size={12} />
+                            {log.timestamp ? format(new Date(log.timestamp), 'dd MMM yyyy, hh:mm a', { locale: bn }) : 'তারিখ নেই'}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            ID: {log.id.substring(0, 8)}...
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Pagination */}
+                <div className="mt-6 pt-4 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={goToPreviousPage}
+                      disabled={currentPage === 1 || loadingLogs}
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors disabled:opacity-50"
+                    >
+                      <ChevronLeft size={16} />
+                      পূর্ববর্তী
+                    </button>
+                    <span className="text-sm text-slate-600">
+                      পৃষ্ঠা {currentPage}
+                    </span>
+                    <button
+                      onClick={loadMoreLogs}
+                      disabled={!hasMore || loadingLogs}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      পরবর্তী
+                      <ChevronRightIcon size={16} />
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 text-center mt-2">
+                    {hasMore ? 'আরও লগ আছে' : 'সকল লগ দেখানো হয়েছে'}
+                  </p>
+                </div>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

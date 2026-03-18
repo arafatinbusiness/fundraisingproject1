@@ -244,12 +244,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
             type="text"
-            placeholder="সদস্যের নাম খুঁজুন..."
+            placeholder="সদস্যের নাম খুঁজুন (যেমন: A, সজল, etc.)..."
             className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+        
+        {/* Quick Member Access */}
+        {searchTerm && filteredMemberData.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-100">
+            <p className="text-xs text-slate-500 mb-2">দ্রুত অ্যাক্সেস:</p>
+            <div className="flex flex-wrap gap-2">
+              {filteredMemberData.slice(0, 3).map(item => (
+                <button
+                  key={item.user.name}
+                  onClick={() => {
+                    setSelectedMember(item.user);
+                    setViewMode('member');
+                    setSearchTerm('');
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-100 transition-colors"
+                >
+                  <UserIcon size={14} />
+                  {item.user.name} এর মাসিক হিসাব দেখুন
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <AnimatePresence mode="wait">

@@ -29,6 +29,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(false);
   const [logsPage, setLogsPage] = useState(1);
+  const [viewMode, setViewMode] = useState<'list' | 'summary'>('summary'); // Default to summary view
   const LOGS_PER_PAGE = 10;
 
   // Reset logs page when switching to logs view
@@ -85,6 +86,54 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
     });
     return Array.from(uniqueCombos).sort();
   }, [fundings]);
+
+  // Create member contribution matrix for summary view
+  const memberContributionMatrix = useMemo(() => {
+    const matrix: Record<string, Record<string, number>> = {};
+    
+    // Initialize all users
+    users.forEach(user => {
+      matrix[user.name] = {};
+      allMonthsYears.forEach(monthYear => {
+        matrix[user.name][monthYear] = 0;
+      });
+    });
+
+    // Fill in actual amounts
+    fundings.forEach(f => {
+      const monthYear = `${f.month} ${f.year}`;
+      if (matrix[f.userName]) {
+        matrix[f.userName][monthYear] = f.amount;
+      }
+    });
+
+    return matrix;
+  }, [fundings, users, allMonthsYears]);
+
+  // Filter users based on search term
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [users, searchTerm]);
+
+  // Calculate month totals
+  const monthTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    allMonthsYears.forEach(monthYear => {
+      totals[monthYear] = users.reduce((sum, user) => {
+        return sum + (memberContributionMatrix[user.name]?.[monthYear] || 0);
+      }, 0);
+    });
+    return totals;
+  }, [allMonthsYears, users, memberContributionMatrix]);
+
+  // Calculate member totals
+  const memberTotalsWithMatrix = useMemo(() => {
+    const totals: Record<string, number> = {};
+    users.forEach(user => {
+      totals[user.name] = Object.values(memberContributionMatrix[user.name] || {}).reduce((sum, amount) => sum + amount, 0);
+    });
+    return totals;
+  }, [users, memberContributionMatrix]);
 
   // Paginated logs - memoized for performance
   const totalLogsPages = Math.ceil(logs.length / LOGS_PER_PAGE);
@@ -354,6 +403,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
             {showLogs ? 'তালিকায় ফিরুন' : 'ইতিহাস দেখুন'}
           </button>
           <button
+            onClick={() => setViewMode(viewMode === 'summary' ? 'list' : 'summary')}
+            className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-xs transition-all active:scale-95 shadow-sm border uppercase tracking-widest ${
+              viewMode === 'summary' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-200 text-slate-700'
+            }`}
+          >
+            {viewMode === 'summary' ? 'সারাংশ দেখুন' : 'তালিকা দেখুন'}
+          </button>
+          <button
             onClick={exportToExcel}
             className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white py-4 rounded-2xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95 uppercase tracking-widest"
           >
@@ -465,6 +522,92 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
                 </button>
               </div>
             )}
+          </motion.div>
+        ) : viewMode === 'summary' ? (
+          <motion.div
+            key="summary"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="space-y-3"
+          >
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-sm font-black text-slate-800">সদস্য অনুযায়ী মাসিক জমার সারাংশ</h3>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">{filteredUsers.length.toLocaleString('bn-BD')} জন সদস্য</span>
+            </div>
+            
+            {/* Summary Table */}
+            <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider sticky left-0 bg-slate-50 z-10">সদস্যের নাম</th>
+                      {allMonthsYears.map(monthYear => (
+                        <th key={monthYear} className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider text-center min-w-[120px]">
+                          {monthYear}
+                        </th>
+                      ))}
+                      <th className="p-4 font-bold text-emerald-600 text-xs uppercase tracking-wider text-center min-w-[100px] sticky right-0 bg-slate-50 z-10">
+                        মোট
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredUsers.map(user => (
+                      <tr key={user.name} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-4 sticky left-0 bg-white z-10">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold">
+                              {user.name.charAt(0)}
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-900 block">{user.name}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">{user.role || 'member'}</span>
+                            </div>
+                          </div>
+                        </td>
+                        {allMonthsYears.map(monthYear => (
+                          <td key={monthYear} className="p-4 text-center">
+                            <div className={`px-3 py-2 rounded-lg font-medium ${
+                              memberContributionMatrix[user.name]?.[monthYear] > 0 
+                                ? 'bg-emerald-50 text-emerald-700' 
+                                : 'bg-slate-50 text-slate-400'
+                            }`}>
+                              {memberContributionMatrix[user.name]?.[monthYear] > 0 
+                                ? `${memberContributionMatrix[user.name][monthYear].toLocaleString('bn-BD')} ৳`
+                                : '০ ৳'
+                              }
+                            </div>
+                          </td>
+                        ))}
+                        <td className="p-4 text-center sticky right-0 bg-white z-10">
+                          <div className="px-3 py-2 bg-emerald-100 text-emerald-800 rounded-lg font-bold">
+                            {memberTotalsWithMatrix[user.name]?.toLocaleString('bn-BD') || '০'} ৳
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Total Row */}
+                    <tr className="bg-slate-50 border-t-2 border-slate-200">
+                      <td className="p-4 font-bold text-slate-800 sticky left-0 bg-slate-50 z-10">মোট</td>
+                      {allMonthsYears.map(monthYear => (
+                        <td key={monthYear} className="p-4 text-center">
+                          <div className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg font-bold">
+                            {monthTotals[monthYear]?.toLocaleString('bn-BD') || '০'} ৳
+                          </div>
+                        </td>
+                      ))}
+                      <td className="p-4 text-center sticky right-0 bg-slate-50 z-10">
+                        <div className="px-3 py-2 bg-emerald-600 text-white rounded-lg font-bold">
+                          {totalAmount.toLocaleString('bn-BD')} ৳
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </motion.div>
         ) : (
           <motion.div

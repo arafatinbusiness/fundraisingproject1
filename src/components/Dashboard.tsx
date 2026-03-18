@@ -87,6 +87,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
     return Array.from(uniqueCombos).sort();
   }, [fundings]);
 
+  // Filter months/years based on selected filters for summary view
+  const filteredMonthsYears = useMemo(() => {
+    return allMonthsYears.filter(monthYear => {
+      const [month, year] = monthYear.split(' ');
+      const matchesMonth = selectedMonth ? month === selectedMonth : true;
+      const matchesYear = selectedYear ? year === selectedYear : true;
+      return matchesMonth && matchesYear;
+    });
+  }, [allMonthsYears, selectedMonth, selectedYear]);
+
   // Create member contribution matrix for summary view
   const memberContributionMatrix = useMemo(() => {
     const matrix: Record<string, Record<string, number>> = {};
@@ -543,7 +553,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider sticky left-0 bg-slate-50 z-10">সদস্যের নাম</th>
-                      {allMonthsYears.map(monthYear => (
+                      {filteredMonthsYears.map(monthYear => (
                         <th key={monthYear} className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider text-center min-w-[120px]">
                           {monthYear}
                         </th>
@@ -567,7 +577,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
                             </div>
                           </div>
                         </td>
-                        {allMonthsYears.map(monthYear => (
+                        {filteredMonthsYears.map(monthYear => (
                           <td key={monthYear} className="p-4 text-center">
                             <div className={`px-3 py-2 rounded-lg font-medium ${
                               memberContributionMatrix[user.name]?.[monthYear] > 0 
@@ -591,7 +601,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
                     {/* Total Row */}
                     <tr className="bg-slate-50 border-t-2 border-slate-200">
                       <td className="p-4 font-bold text-slate-800 sticky left-0 bg-slate-50 z-10">মোট</td>
-                      {allMonthsYears.map(monthYear => (
+                      {filteredMonthsYears.map(monthYear => (
                         <td key={monthYear} className="p-4 text-center">
                           <div className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg font-bold">
                             {monthTotals[monthYear]?.toLocaleString('bn-BD') || '০'} ৳

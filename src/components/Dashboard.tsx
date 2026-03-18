@@ -546,71 +546,138 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
               <span className="text-[10px] font-bold text-slate-400 uppercase">{filteredUsers.length.toLocaleString('bn-BD')} জন সদস্য</span>
             </div>
             
-            {/* Summary Table */}
+            {/* Month Selection Info */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-emerald-800 text-sm mb-1">নির্বাচিত মাসের জমা</h4>
+                  <p className="text-emerald-600 text-xs">
+                    {selectedMonth && selectedYear 
+                      ? `${selectedMonth} ${selectedYear} মাসের জন্য সকল সদস্যের জমা`
+                      : selectedMonth 
+                        ? `${selectedMonth} মাসের জন্য সকল সদস্যের জমা`
+                        : selectedYear
+                          ? `${selectedYear} সালের জন্য সকল সদস্যের জমা`
+                          : 'সকল মাসের জন্য সকল সদস্যের জমা'
+                    }
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-emerald-800 font-bold text-sm">মোট জমা</p>
+                  <p className="text-emerald-600 text-lg font-black">
+                    {filteredFundings.reduce((sum, f) => sum + f.amount, 0).toLocaleString('bn-BD')} ৳
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Single Month Summary Table */}
             <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider sticky left-0 bg-slate-50 z-10">সদস্যের নাম</th>
-                      {filteredMonthsYears.map(monthYear => (
-                        <th key={monthYear} className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider text-center min-w-[120px]">
-                          {monthYear}
-                        </th>
-                      ))}
-                      <th className="p-4 font-bold text-emerald-600 text-xs uppercase tracking-wider text-center min-w-[100px] sticky right-0 bg-slate-50 z-10">
-                        মোট
-                      </th>
+                      <th className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider">সদস্যের নাম</th>
+                      <th className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider text-center">মাস</th>
+                      <th className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider text-center">জমার পরিমাণ</th>
+                      <th className="p-4 font-bold text-slate-600 text-xs uppercase tracking-wider text-center">স্ট্যাটাস</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredUsers.map(user => (
-                      <tr key={user.name} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-4 sticky left-0 bg-white z-10">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold">
-                              {user.name.charAt(0)}
+                    {filteredUsers.map(user => {
+                      // Find user's contribution for selected month/year
+                      let userContribution = 0;
+                      let contributionMonthYear = '';
+                      
+                      if (selectedMonth && selectedYear) {
+                        const monthYear = `${selectedMonth} ${selectedYear}`;
+                        userContribution = memberContributionMatrix[user.name]?.[monthYear] || 0;
+                        contributionMonthYear = monthYear;
+                      } else if (selectedMonth) {
+                        // Find any contribution for this month across all years
+                        const contributions = fundings.filter(f => 
+                          f.userName === user.name && f.month === selectedMonth
+                        );
+                        userContribution = contributions.reduce((sum, f) => sum + f.amount, 0);
+                        contributionMonthYear = selectedMonth;
+                      } else if (selectedYear) {
+                        // Find any contribution for this year across all months
+                        const contributions = fundings.filter(f => 
+                          f.userName === user.name && f.year.toString() === selectedYear
+                        );
+                        userContribution = contributions.reduce((sum, f) => sum + f.amount, 0);
+                        contributionMonthYear = selectedYear;
+                      } else {
+                        // Show total contribution across all months
+                        userContribution = memberTotalsWithMatrix[user.name] || 0;
+                        contributionMonthYear = 'সকল মাস';
+                      }
+                      
+                      return (
+                        <tr key={user.name} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold">
+                                {user.name.charAt(0)}
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-900 block">{user.name}</span>
+                                <span className="text-[10px] text-slate-400 font-medium">{user.role || 'member'}</span>
+                              </div>
                             </div>
-                            <div>
-                              <span className="font-bold text-slate-900 block">{user.name}</span>
-                              <span className="text-[10px] text-slate-400 font-medium">{user.role || 'member'}</span>
+                          </td>
+                          <td className="p-4 text-center">
+                            <div className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg font-medium">
+                              {contributionMonthYear}
                             </div>
-                          </div>
-                        </td>
-                        {filteredMonthsYears.map(monthYear => (
-                          <td key={monthYear} className="p-4 text-center">
-                            <div className={`px-3 py-2 rounded-lg font-medium ${
-                              memberContributionMatrix[user.name]?.[monthYear] > 0 
+                          </td>
+                          <td className="p-4 text-center">
+                            <div className={`px-3 py-2 rounded-lg font-bold ${
+                              userContribution > 0 
                                 ? 'bg-emerald-50 text-emerald-700' 
                                 : 'bg-slate-50 text-slate-400'
                             }`}>
-                              {memberContributionMatrix[user.name]?.[monthYear] > 0 
-                                ? `${memberContributionMatrix[user.name][monthYear].toLocaleString('bn-BD')} ৳`
+                              {userContribution > 0 
+                                ? `${userContribution.toLocaleString('bn-BD')} ৳`
                                 : '০ ৳'
                               }
                             </div>
                           </td>
-                        ))}
-                        <td className="p-4 text-center sticky right-0 bg-white z-10">
-                          <div className="px-3 py-2 bg-emerald-100 text-emerald-800 rounded-lg font-bold">
-                            {memberTotalsWithMatrix[user.name]?.toLocaleString('bn-BD') || '০'} ৳
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="p-4 text-center">
+                            <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              userContribution > 0 
+                                ? 'bg-emerald-100 text-emerald-700' 
+                                : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {userContribution > 0 ? 'জমা হয়েছে' : 'জমা হয়নি'}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {/* Total Row */}
                     <tr className="bg-slate-50 border-t-2 border-slate-200">
-                      <td className="p-4 font-bold text-slate-800 sticky left-0 bg-slate-50 z-10">মোট</td>
-                      {filteredMonthsYears.map(monthYear => (
-                        <td key={monthYear} className="p-4 text-center">
-                          <div className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg font-bold">
-                            {monthTotals[monthYear]?.toLocaleString('bn-BD') || '০'} ৳
-                          </div>
-                        </td>
-                      ))}
-                      <td className="p-4 text-center sticky right-0 bg-slate-50 z-10">
+                      <td className="p-4 font-bold text-slate-800">মোট</td>
+                      <td className="p-4 text-center">
+                        <div className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg font-medium">
+                          {selectedMonth && selectedYear 
+                            ? `${selectedMonth} ${selectedYear}`
+                            : selectedMonth 
+                              ? selectedMonth
+                              : selectedYear
+                                ? selectedYear
+                                : 'সকল মাস'
+                          }
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
                         <div className="px-3 py-2 bg-emerald-600 text-white rounded-lg font-bold">
-                          {totalAmount.toLocaleString('bn-BD')} ৳
+                          {filteredFundings.reduce((sum, f) => sum + f.amount, 0).toLocaleString('bn-BD')} ৳
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <div className="px-3 py-1 bg-emerald-600 text-white rounded-full text-xs font-bold">
+                          মোট সংগ্রহ
                         </div>
                       </td>
                     </tr>

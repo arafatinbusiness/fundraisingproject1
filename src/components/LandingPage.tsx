@@ -14,10 +14,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
         {/* Background Image with Gradient Overlay */}
         <div className="absolute inset-0 z-0">
           <img 
-            src="https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&q=80&w=2000" 
+            src="/images/welcome-bg.jpg" 
             alt="Premium Beef" 
             className="w-full h-full object-cover opacity-60 scale-105"
-            referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-transparent to-transparent" />
@@ -93,10 +92,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
           <div className="relative">
             <div className="aspect-[4/5] rounded-[3rem] overflow-hidden">
               <img 
-                src="https://images.unsplash.com/photo-1551028150-64b9f398f678?auto=format&fit=crop&q=80&w=1000" 
+                src="/images/section-bg.jpg" 
                 alt="Community Feast" 
                 className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
               />
             </div>
             <div className="absolute -bottom-10 -right-10 bg-emerald-600 p-8 rounded-[2rem] shadow-2xl hidden sm:block">
@@ -154,19 +152,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 step: "০১", 
                 title: "লগইন করুন", 
                 desc: "গুগল অ্যাকাউন্ট দিয়ে দ্রুত সাইন-ইন করুন।",
-                img: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=600"
+                img: "/images/section-bg.jpg"
               },
               { 
                 step: "০২", 
                 title: "টাকা জমা", 
                 desc: "অ্যাডমিনের কাছে আপনার কিস্তি জমা দিন।",
-                img: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=600"
+                img: "/images/section-bg.jpg"
               },
               { 
                 step: "০৩", 
                 title: "হিসাব দেখুন", 
                 desc: "ড্যাশবোর্ডে আপনার জমার আপডেট দেখুন।",
-                img: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=600"
+                img: "/images/section-bg.jpg"
               }
             ].map((item, idx) => (
               <motion.div 
@@ -175,7 +173,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 className="group space-y-6"
               >
                 <div className="aspect-video rounded-3xl overflow-hidden grayscale group-hover:grayscale-0 transition-all duration-500">
-                  <img src={item.img} alt={item.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={item.img} alt={item.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="space-y-2">
                   <span className="text-emerald-600 font-black text-4xl">{item.step}</span>
@@ -192,10 +190,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       <section className="relative py-32 px-6 overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
-            src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=2000" 
+            src="/images/section-bg.jpg" 
             alt="Dining" 
             className="w-full h-full object-cover opacity-20"
-            referrerPolicy="no-referrer"
           />
         </div>
         <div className="relative z-10 max-w-4xl mx-auto text-center space-y-12">

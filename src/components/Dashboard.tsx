@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Download, Search, Calendar, User as UserIcon, ChevronRight, X, History, Clock, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import { Download, Search, Calendar, User as UserIcon, ChevronRight, X, History, Clock, ChevronLeft, ChevronRight as ChevronRightIcon, Phone, MessageCircle } from 'lucide-react';
 import { Funding, User, Log } from '../types';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -701,8 +701,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => setViewMode('main')}
-                        className="text-slate-600 hover:text-slate-800"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setViewMode('main');
+                        }}
+                        className="text-slate-600 hover:text-slate-800 px-3 py-1 rounded-lg hover:bg-slate-100 transition-colors"
                       >
                         ← ফিরে যান
                       </button>
@@ -719,6 +723,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
                     <div></div> {/* Spacer */}
                   </div>
                 </div>
+
+                {/* Contact CTAs */}
+                {selectedMember.phone && (
+                  <div className="p-4 border-b border-slate-100 bg-white">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Phone size={16} className="text-slate-500" />
+                        <span className="text-sm font-medium text-slate-700">ফোন নম্বর:</span>
+                        <span className="text-sm font-bold text-slate-900">{selectedMember.phone}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      {/* WhatsApp Button */}
+                      <a
+                        href={`https://wa.me/${selectedMember.phone.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-green-700 transition-colors"
+                      >
+                        <MessageCircle size={16} />
+                        WhatsApp
+                      </a>
+                      {/* Phone Call Button */}
+                      <a
+                        href={`tel:${selectedMember.phone}`}
+                        className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors"
+                      >
+                        <Phone size={16} />
+                        কল করুন
+                      </a>
+                    </div>
+                  </div>
+                )}
 
                 {/* Member Monthly Contributions */}
                 <div className="p-4">

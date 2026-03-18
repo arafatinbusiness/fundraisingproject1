@@ -701,32 +701,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
             {/* Member Detail View */}
             {selectedMember && (
               <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-                {/* Member Header */}
-                <div className="p-4 border-b border-slate-100 bg-emerald-50">
+                {/* Sticky Top Bar */}
+                <div className="sticky top-0 z-10 bg-white border-b border-slate-200 p-4 shadow-sm">
                   <div className="flex items-center justify-between">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setViewMode('main');
+                      }}
+                      className="flex items-center gap-2 text-slate-700 hover:text-slate-900 px-4 py-2.5 rounded-xl hover:bg-slate-100 transition-colors font-medium"
+                    >
+                      <ArrowLeft size={20} />
+                      <span>ফিরে যান</span>
+                    </button>
                     <div className="flex items-center gap-3">
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setViewMode('main');
-                        }}
-                        className="flex items-center gap-2 text-slate-600 hover:text-slate-800 px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors"
-                      >
-                        <ArrowLeft size={18} />
-                        <span className="font-medium">ফিরে যান</span>
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-xl font-bold">
+                      <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-lg font-bold">
                         {selectedMember.name.charAt(0)}
                       </div>
-                      <div>
-                        <h2 className="text-xl font-bold text-slate-900">{selectedMember.name}</h2>
-                        <p className="text-sm text-slate-600">{selectedMember.role || 'member'}</p>
+                      <div className="text-right">
+                        <h2 className="text-lg font-bold text-slate-900">{selectedMember.name}</h2>
+                        <p className="text-xs text-slate-600">{selectedMember.role || 'member'}</p>
                       </div>
                     </div>
-                    <div></div> {/* Spacer */}
                   </div>
                 </div>
 

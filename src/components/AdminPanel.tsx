@@ -204,6 +204,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
     }
   };
 
+  // Function to delete funding for a specific month
+  const handleDeleteFunding = async (userId: string, userName: string, month: string, year: string) => {
+    if (!confirm(`আপনি কি নিশ্চিত যে ${userName}-এর ${month} ${year}-এর তহবিল মুছে ফেলতে চান? এই কাজটি ফিরিয়ে আনা যাবে না।`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Find the funding document
+      const q = query(
+        collection(db, 'fundings'),
+        where('userId', '==', userId),
+        where('month', '==', month),
+        where('year', '==', parseInt(year))
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const fundingDoc = querySnapshot.docs[0];
+        await deleteDoc(doc(db, 'fundings', fundingDoc.id));
+        await logAction('funding_delete', `${userName}-এর ${month} ${year}-এর তহবিল মুছে ফেলা হয়েছে`);
+        alert(`${userName}-এর ${month} ${year}-এর তহবিল সফলভাবে মুছে ফেলা হয়েছে!`);
+      } else {
+        alert('এই মাসের জন্য কোনো তহবিল পাওয়া যায়নি।');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('তহবিল মুছতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Tab Navigation */}
@@ -244,76 +277,147 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm"
+            className="space-y-6"
           >
-            <form onSubmit={handleUpdateFunding} className="space-y-5">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center">
-                  <DollarSign size={18} />
+            {/* Update Funding Form */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+              <form onSubmit={handleUpdateFunding} className="space-y-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center">
+                    <DollarSign size={18} />
+                  </div>
+                  <h3 className="text-lg font-black text-slate-800">তহবিল আপডেট করুন</h3>
                 </div>
-                <h3 className="text-lg font-black text-slate-800">তহবিল আপডেট করুন</h3>
-              </div>
-              
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">সদস্য নির্বাচন করুন</label>
-                <select
-                  className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
-                  value={selectedUserId}
-                  onChange={(e) => setSelectedUserId(e.target.value)}
-                  required
-                >
-                  <option value="">সদস্য বেছে নিন</option>
-                  {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+                
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">মাস</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">সদস্য নির্বাচন করুন</label>
                   <select
                     className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
-                    value={month}
-                    onChange={(e) => setMonth(e.target.value)}
+                    value={selectedUserId}
+                    onChange={(e) => setSelectedUserId(e.target.value)}
                     required
                   >
-                    {MONTHS_BN.map(m => <option key={m} value={m}>{m}</option>)}
+                    <option value="">সদস্য বেছে নিন</option>
+                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">মাস</label>
+                    <select
+                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
+                      value={month}
+                      onChange={(e) => setMonth(e.target.value)}
+                      required
+                    >
+                      {MONTHS_BN.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">বছর</label>
+                    <input
+                      type="number"
+                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
+                      value={year}
+                      onChange={(e) => setYear(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">বছর</label>
-                  <input
-                    type="number"
-                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
-                    value={year}
-                    onChange={(e) => setYear(e.target.value)}
-                    required
-                  />
+                  <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">পরিমাণ (টাকা)</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">৳</span>
+                    <input
+                      type="number"
+                      placeholder="৫০০"
+                      className="w-full pl-8 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">পরিমাণ (টাকা)</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">৳</span>
-                  <input
-                    type="number"
-                    placeholder="৫০০"
-                    className="w-full pl-8 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-sm"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    required
-                  />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-[0.98] disabled:opacity-50"
+                >
+                  {loading ? 'আপডেট হচ্ছে...' : 'তহবিল আপডেট করুন'}
+                </button>
+              </form>
+            </div>
+
+            {/* Delete Funding Form */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 bg-red-50 text-red-600 rounded-lg flex items-center justify-center">
+                  <Trash2 size={18} />
                 </div>
+                <h3 className="text-lg font-black text-slate-800">তহবিল মুছুন</h3>
               </div>
+              
+              <p className="text-sm text-slate-600 mb-4">
+                ভুল করে প্রবেশ করা তহবিল মুছে ফেলতে এই ফর্ম ব্যবহার করুন। সতর্কতা: মুছে ফেলা তহবিল ফিরিয়ে আনা যাবে না।
+              </p>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-[0.98] disabled:opacity-50"
-              >
-                {loading ? 'আপডেট হচ্ছে...' : 'তহবিল আপডেট করুন'}
-              </button>
-            </form>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">সদস্য নির্বাচন করুন</label>
+                  <select
+                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-red-500 font-bold text-sm"
+                    value={selectedUserId}
+                    onChange={(e) => setSelectedUserId(e.target.value)}
+                    required
+                  >
+                    <option value="">সদস্য বেছে নিন</option>
+                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">মাস</label>
+                    <select
+                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-red-500 font-bold text-sm"
+                      value={month}
+                      onChange={(e) => setMonth(e.target.value)}
+                      required
+                    >
+                      {MONTHS_BN.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">বছর</label>
+                    <input
+                      type="number"
+                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-red-500 font-bold text-sm"
+                      value={year}
+                      onChange={(e) => setYear(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    const user = users.find(u => u.id === selectedUserId);
+                    if (user && month && year) {
+                      handleDeleteFunding(selectedUserId, user.name, month, year);
+                    } else {
+                      alert('দয়া করে সদস্য, মাস এবং বছর নির্বাচন করুন।');
+                    }
+                  }}
+                  disabled={loading || !selectedUserId || !month || !year}
+                  className="w-full bg-red-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg shadow-red-100 hover:bg-red-700 transition-all active:scale-[0.98] disabled:opacity-50"
+                >
+                  {loading ? 'মুছে ফেলা হচ্ছে...' : 'তহবিল মুছুন'}
+                </button>
+              </div>
+            </div>
           </motion.div>
         )}
 

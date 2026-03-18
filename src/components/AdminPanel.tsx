@@ -32,6 +32,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
   const [newUserPhone, setNewUserPhone] = useState('');
   const [newUserRole, setNewUserRole] = useState<'admin' | 'member'>('member');
   const [userDetails, setUserDetails] = useState('');
+  
+  // Edit User State
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserPhone, setEditUserPhone] = useState('');
+  const [editUserRole, setEditUserRole] = useState<'admin' | 'member'>('member');
 
   // Fund Info State
   const [fundName, setFundName] = useState(fundInfo?.name || '');
@@ -237,6 +243,45 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
     }
   };
 
+  // Function to start editing a user
+  const startEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditUserName(user.name);
+    setEditUserPhone(user.phone || '');
+    setEditUserRole(user.role || 'member');
+  };
+
+  // Function to cancel editing
+  const cancelEditUser = () => {
+    setEditingUser(null);
+    setEditUserName('');
+    setEditUserPhone('');
+    setEditUserRole('member');
+  };
+
+  // Function to update user information
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser || !editUserName || !editUserPhone) return;
+
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'users', editingUser.id), {
+        name: editUserName,
+        phone: editUserPhone,
+        role: editUserRole
+      });
+      await logAction('user_update', `${editingUser.name}-এর তথ্য আপডেট করা হয়েছে: নতুন নাম ${editUserName}, নতুন ফোন ${editUserPhone}, নতুন রোল ${editUserRole}`);
+      alert('সদস্যের তথ্য সফলভাবে আপডেট হয়েছে!');
+      cancelEditUser();
+    } catch (err) {
+      console.error(err);
+      alert('সদস্য আপডেট করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Tab Navigation */}
@@ -429,6 +474,83 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
             exit={{ opacity: 0, scale: 0.95 }}
             className="space-y-6"
           >
+            {/* Edit User Form */}
+            {editingUser && (
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm border-blue-300">
+                <form onSubmit={handleUpdateUser} className="space-y-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+                        <Save size={18} />
+                      </div>
+                      <h3 className="text-lg font-black text-slate-800">সদস্য তথ্য আপডেট করুন</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={cancelEditUser}
+                      className="text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">নাম (বাংলায়)</label>
+                    <input
+                      type="text"
+                      placeholder="উদা: আব্দুল করিম"
+                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm"
+                      value={editUserName}
+                      onChange={(e) => setEditUserName(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">ফোন নম্বর</label>
+                    <input
+                      type="tel"
+                      placeholder="০১৭১২৩৪৫৬৭৮"
+                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm"
+                      value={editUserPhone}
+                      onChange={(e) => setEditUserPhone(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">রোল</label>
+                    <select
+                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm"
+                      value={editUserRole}
+                      onChange={(e) => setEditUserRole(e.target.value as 'admin' | 'member')}
+                    >
+                      <option value="member">সদস্য</option>
+                      <option value="admin">অ্যাডমিন</option>
+                    </select>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={cancelEditUser}
+                      className="flex-1 bg-slate-200 text-slate-700 py-4 rounded-2xl font-black text-sm hover:bg-slate-300 transition-all active:scale-[0.98]"
+                    >
+                      বাতিল
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all active:scale-[0.98] disabled:opacity-50"
+                    >
+                      {loading ? 'আপডেট হচ্ছে...' : 'আপডেট করুন'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Add User Form */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
               <form onSubmit={handleAddUser} className="space-y-5">
                 <div className="flex items-center gap-2 mb-2">
@@ -513,13 +635,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
                     </div>
                     
                     <div className="flex gap-2 mt-3 pt-3 border-t border-slate-50">
+                      <button
+                        onClick={() => startEditUser(u)}
+                        disabled={loading}
+                        className="flex-1 bg-blue-600 text-white text-xs font-bold py-2 rounded-xl hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1"
+                      >
+                        <Save size={12} />
+                        এডিট
+                      </button>
                       {u.role === 'member' ? (
                         <button
                           onClick={() => handlePromoteToAdmin(u.id, u.name)}
                           disabled={loading}
                           className="flex-1 bg-emerald-600 text-white text-xs font-bold py-2 rounded-xl hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50"
                         >
-                          অ্যাডমিন বানান
+                          অ্যাডমিন
                         </button>
                       ) : (
                         <button
@@ -527,7 +657,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, fundings, fundInf
                           disabled={loading}
                           className="flex-1 bg-slate-600 text-white text-xs font-bold py-2 rounded-xl hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-50"
                         >
-                          সদস্য বানান
+                          সদস্য
                         </button>
                       )}
                       <button

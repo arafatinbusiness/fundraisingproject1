@@ -601,13 +601,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, users, fundName 
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <div className="p-4 border-b border-slate-100">
                 <h2 className="text-lg font-bold text-slate-800">
-                  সদস্য তালিকা ({filteredMemberData.length} জন)
+                  সদস্য তালিকা ({users.length} জন)
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
                   {selectedMonth || selectedYear 
                     ? `নির্বাচিত মাসের জন্য সকল সদস্য`
                     : 'সকল মাসের জন্য সকল সদস্য'
                   }
+                  {searchTerm && (
+                    <span className="text-emerald-600 font-medium">
+                      (ফিল্টার করা: {filteredMemberData.length} জন)
+                    </span>
+                  )}
                 </p>
               </div>
 

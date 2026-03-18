@@ -584,40 +584,59 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredUsers.map(user => {
-                      // Find user's contribution for selected month/year
-                      let userContribution = 0;
-                      let contributionMonthYear = '';
+                    {(() => {
+                      // Create array of users with their contributions for selected period
+                      const usersWithContributions = filteredUsers.map(user => {
+                        let userContribution = 0;
+                        let contributionMonthYear = '';
+                        
+                        if (selectedMonth && selectedYear) {
+                          const monthYear = `${selectedMonth} ${selectedYear}`;
+                          userContribution = memberContributionMatrix[user.name]?.[monthYear] || 0;
+                          contributionMonthYear = monthYear;
+                        } else if (selectedMonth) {
+                          const contributions = fundings.filter(f => 
+                            f.userName === user.name && f.month === selectedMonth
+                          );
+                          userContribution = contributions.reduce((sum, f) => sum + f.amount, 0);
+                          contributionMonthYear = selectedMonth;
+                        } else if (selectedYear) {
+                          const contributions = fundings.filter(f => 
+                            f.userName === user.name && f.year.toString() === selectedYear
+                          );
+                          userContribution = contributions.reduce((sum, f) => sum + f.amount, 0);
+                          contributionMonthYear = selectedYear;
+                        } else {
+                          userContribution = memberTotalsWithMatrix[user.name] || 0;
+                          contributionMonthYear = 'সকল মাস';
+                        }
+                        
+                        return {
+                          user,
+                          contribution: userContribution,
+                          monthYear: contributionMonthYear
+                        };
+                      });
                       
-                      if (selectedMonth && selectedYear) {
-                        const monthYear = `${selectedMonth} ${selectedYear}`;
-                        userContribution = memberContributionMatrix[user.name]?.[monthYear] || 0;
-                        contributionMonthYear = monthYear;
-                      } else if (selectedMonth) {
-                        // Find any contribution for this month across all years
-                        const contributions = fundings.filter(f => 
-                          f.userName === user.name && f.month === selectedMonth
-                        );
-                        userContribution = contributions.reduce((sum, f) => sum + f.amount, 0);
-                        contributionMonthYear = selectedMonth;
-                      } else if (selectedYear) {
-                        // Find any contribution for this year across all months
-                        const contributions = fundings.filter(f => 
-                          f.userName === user.name && f.year.toString() === selectedYear
-                        );
-                        userContribution = contributions.reduce((sum, f) => sum + f.amount, 0);
-                        contributionMonthYear = selectedYear;
-                      } else {
-                        // Show total contribution across all months
-                        userContribution = memberTotalsWithMatrix[user.name] || 0;
-                        contributionMonthYear = 'সকল মাস';
-                      }
+                      // Sort: first non-contributors (0 amount), then contributors by amount ascending
+                      usersWithContributions.sort((a, b) => {
+                        if (a.contribution === 0 && b.contribution === 0) {
+                          return a.user.name.localeCompare(b.user.name);
+                        }
+                        if (a.contribution === 0) return -1;
+                        if (b.contribution === 0) return 1;
+                        return a.contribution - b.contribution;
+                      });
                       
-                      return (
+                      return usersWithContributions.map(({ user, contribution, monthYear }) => (
                         <tr key={user.name} className="hover:bg-slate-50 transition-colors">
                           <td className="p-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+                                contribution > 0 
+                                  ? 'bg-emerald-50 text-emerald-600' 
+                                  : 'bg-slate-100 text-slate-500'
+                              }`}>
                                 {user.name.charAt(0)}
                               </div>
                               <div>
@@ -628,33 +647,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ fundings, logs, users, fun
                           </td>
                           <td className="p-4 text-center">
                             <div className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg font-medium">
-                              {contributionMonthYear}
+                              {monthYear}
                             </div>
                           </td>
                           <td className="p-4 text-center">
                             <div className={`px-3 py-2 rounded-lg font-bold ${
-                              userContribution > 0 
+                              contribution > 0 
                                 ? 'bg-emerald-50 text-emerald-700' 
                                 : 'bg-slate-50 text-slate-400'
                             }`}>
-                              {userContribution > 0 
-                                ? `${userContribution.toLocaleString('bn-BD')} ৳`
+                              {contribution > 0 
+                                ? `${contribution.toLocaleString('bn-BD')} ৳`
                                 : '০ ৳'
                               }
                             </div>
                           </td>
                           <td className="p-4 text-center">
                             <div className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              userContribution > 0 
+                              contribution > 0 
                                 ? 'bg-emerald-100 text-emerald-700' 
                                 : 'bg-slate-100 text-slate-500'
                             }`}>
-                              {userContribution > 0 ? 'জমা হয়েছে' : 'জমা হয়নি'}
+                              {contribution > 0 ? 'জমা হয়েছে' : 'জমা হয়নি'}
                             </div>
                           </td>
                         </tr>
-                      );
-                    })}
+                      ));
+                    })()}
                     {/* Total Row */}
                     <tr className="bg-slate-50 border-t-2 border-slate-200">
                       <td className="p-4 font-bold text-slate-800">মোট</td>
